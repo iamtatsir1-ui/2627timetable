@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>個人時間表</title>
+    <title>教師個人時間表 (自動單雙週)</title>
     <!-- 引入 PapaParse 用於解析 CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -29,18 +29,38 @@
             border-bottom: 2px solid #eaeaea;
             padding-bottom: 15px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         h1 {
             margin: 0;
             font-size: 1.5rem;
             color: #2c3e50;
         }
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
         #status-bar {
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: bold;
-            padding: 8px 15px;
+            padding: 8px 12px;
             border-radius: 4px;
             background-color: #e2e8f0;
+        }
+        .date-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .date-picker-wrapper input[type="date"] {
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 0.9rem;
         }
         table {
             width: 100%;
@@ -60,23 +80,45 @@
             background-color: #1e293b;
             color: #fff;
         }
+        /* 當日直欄放大與加粗 */
+        th.highlight-col-header {
+            background-color: #0284c7 !important;
+            font-size: 1rem;
+        }
+        td.highlight-col {
+            font-weight: bold;
+            font-size: 0.98rem;
+            background-color: #f8fafc;
+        }
         .time-col {
             background-color: #f1f5f9;
             font-weight: bold;
             width: 120px;
         }
-        /* 樣式設定：依要求將空堂或非當週課堂轉黃色，文字淺色 */
+        /* 樣式設定 */
         .free-slot {
-            background-color: #fef08a !important; /* 空白格黃色 */
-            color: #333 !important;
+            background-color: #fef08a !important; /* 黃色空堂，不顯示文字 */
+            color: transparent !important;
         }
         .inactive-class {
-            background-color: #fef08a !important; /* 非當週或上學期完結的課堂變黃色 */
-            color: #94a3b8 !important;            /* 字體變成淺色 */
+            background-color: #fef08a !important; /* 非當週或上學期完結變黃色、淺色字 */
+            color: #94a3b8 !important;            
         }
         .active-class {
             background-color: #ffffff;
             color: #0f172a;
+        }
+        /* 當刻正在進行的課堂醒目標示 */
+        .current-active-class {
+            border: 3px solid #ef4444 !important;
+            box-shadow: inset 0 0 8px rgba(239, 68, 68, 0.4);
+            background-color: #fff1f2 !important;
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { border-color: #ef4444; }
+            50% { border-color: #fca5a5; }
+            100% { border-color: #ef4444; }
         }
         .holiday-notice {
             text-align: center;
@@ -95,7 +137,13 @@
 <div class="container">
     <header>
         <h1>教師個人自動時間表</h1>
-        <div id="status-bar">載入中...</div>
+        <div class="header-controls">
+            <div class="date-picker-wrapper">
+                <label for="date-select">查詢日期:</label>
+                <input type="date" id="date-select" onchange="onDateChanged()">
+            </div>
+            <div id="status-bar">載入中...</div>
+        </div>
     </header>
 
     <div id="notice-container"></div>
@@ -103,11 +151,22 @@
 </div>
 
 <script>
-// 中文月份對應數字
 const monthMap = {
     '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
     '七': 7, '八': 8, '九': 9, '十': 10, '十一': 11, '十二': 12
 };
+
+// 星期對應 timetable.csv 的表頭名稱
+const dayIndexToHeader = {
+    1: '星期一',
+    3: '星期三',
+    4: '星期四',
+    5: '星期五'
+};
+
+let globalCalendarData = null;
+let globalTimetableData = null;
+let isUserSelectedDate = false;
 
 async function loadTimetableAndCalendar() {
     try {
@@ -121,13 +180,23 @@ async function loadTimetableAndCalendar() {
 
         Papa.parse(calText, {
             header: false,
-            skipEmptyLines: false, // 保留完整行以便準確對應 A3-A64
+            skipEmptyLines: false,
             complete: function(calResults) {
                 Papa.parse(timeText, {
                     header: false,
                     skipEmptyLines: true,
                     complete: function(timeResults) {
-                        renderSchedule(calResults.data, timeResults.data);
+                        globalCalendarData = calResults.data;
+                        globalTimetableData = timeResults.data;
+                        
+                        // 初始化日期選擇器 (若尚未手動選擇)
+                        const dateInput = document.getElementById('date-select');
+                        if (!isUserSelectedDate) {
+                            const today = new Date();
+                            dateInput.value = formatDateString(today);
+                        }
+                        
+                        renderSchedule();
                     }
                 });
             }
@@ -139,22 +208,62 @@ async function loadTimetableAndCalendar() {
     }
 }
 
-function renderSchedule(calendarRows, timetableData) {
+function formatDateString(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function onDateChanged() {
+    isUserSelectedDate = true;
+    renderSchedule();
+}
+
+// 檢查當前時間是否在時段內 (格式如 "09:40-10:15")
+function isCurrentTimeInRange(timeStr, targetDateStr) {
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const currentDate = now.getDate();
+    const todayStr = formatDateString(now);
+    if (targetDateStr !== todayStr) return false; // 只有檢視今天才醒目標示當刻課堂
+
+    if (!timeStr || !timeStr.includes('-')) return false;
+    const parts = timeStr.split('-');
+    const startTime = parts[0].trim();
+    const endTime = parts[1].trim();
+
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
     
-    // 檢查是否為 2月13日或之後
-    const isAfterFeb13 = (currentMonth > 2) || (currentMonth === 2 && currentDate >= 13);
+    const parseMin = (tStr) => {
+        const [hh, mm] = tStr.split(':').map(Number);
+        return hh * 60 + mm;
+    };
+
+    const startMin = parseMin(startTime);
+    const endMin = parseMin(endTime);
+
+    return currentMinutes >= startMin && currentMinutes <= endMin;
+}
+
+function renderSchedule() {
+    if (!globalCalendarData || !globalTimetableData) return;
+
+    const dateInputVal = document.getElementById('date-select').value;
+    const selectedDate = dateInputVal ? new Date(dateInputVal + 'T00:00:00') : new Date();
+    
+    const targetYear = selectedDate.getFullYear();
+    const targetMonth = selectedDate.getMonth() + 1;
+    const targetDay = selectedDate.getDate();
+    const targetDayOfWeek = selectedDate.getDay(); // 0:日, 1:一, 2:二, 3:三, 4:四, 5:五, 6:六
+
+    const isAfterFeb13 = (targetMonth > 2) || (targetMonth === 2 && targetDay >= 13);
 
     let matchedWeekNum = null;
     let currentWeekType = '未知';
     let activeMonthNum = 0;
     
-    // 依照你的說明：從 A3 到 A64 (陣列索引 2 到 63)
-    for (let i = 2; i < calendarRows.length; i++) {
-        const row = calendarRows[i];
+    // 尋找 calendar.csv 裡的對應週數
+    for (let i = 2; i < globalCalendarData.length; i++) {
+        const row = globalCalendarData[i];
         if (!row || row.length < 9) continue;
         
         const weekNumStr = row[0] ? row[0].trim() : '';
@@ -164,12 +273,11 @@ function renderSchedule(calendarRows, timetableData) {
             activeMonthNum = monthMap[monthStr] || activeMonthNum;
         }
         
-        // 檢查星期一至星期日 (對應 CSV 欄位索引 2 至 8，即 M 至 S)
         for (let dayCol = 2; dayCol <= 8; dayCol++) {
             const dayVal = row[dayCol] ? row[dayCol].trim() : '';
             if (dayVal !== '') {
                 const dNum = parseInt(dayVal, 10);
-                if (dNum === currentDate && activeMonthNum === currentMonth) {
+                if (dNum === targetDay && activeMonthNum === targetMonth) {
                     if (weekNumStr !== '') {
                         matchedWeekNum = parseInt(weekNumStr, 10);
                     }
@@ -183,7 +291,7 @@ function renderSchedule(calendarRows, timetableData) {
     const statusBar = document.getElementById('status-bar');
     const noticeContainer = document.getElementById('notice-container');
 
-    if (isAfterFeb13 && currentMonth === 2) {
+    if (isAfterFeb13 && targetMonth === 2) {
         noticeContainer.innerHTML = `<div class="holiday-notice">提示：已過 2月13日，標示 [上學期] 的課堂已轉為黃色空堂。</div>`;
     } else {
         noticeContainer.innerHTML = '';
@@ -191,7 +299,6 @@ function renderSchedule(calendarRows, timetableData) {
 
     let isOddWeek = false;
     if (matchedWeekNum !== null) {
-        // 單數週即單週，雙數週即雙週
         if (matchedWeekNum % 2 !== 0) {
             isOddWeek = true;
             currentWeekType = `第 ${matchedWeekNum} 週 (單週)`;
@@ -203,45 +310,72 @@ function renderSchedule(calendarRows, timetableData) {
         currentWeekType = '假期 / 未對應到日曆';
     }
 
-    const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDate).padStart(2, '0')}`;
-    statusBar.innerHTML = `今日: ${todayStr} | 週期: <span style="color: #2563eb;">${currentWeekType}</span>`;
+    statusBar.innerHTML = `週期: <span style="color: #2563eb;">${currentWeekType}</span>`;
+
+    // 找出當天對應 timetable 的欄位名稱
+    const targetHeaderName = dayIndexToHeader[targetDayOfWeek];
 
     let html = '<table>';
     
-    if (timetableData.length > 0) {
+    if (globalTimetableData.length > 0) {
+        const headerRow = globalTimetableData[0];
+        
+        // 找出當天對應的 column index
+        let targetColIndex = -1;
+        for (let j = 0; j < headerRow.length; j++) {
+            if (headerRow[j].trim() === targetHeaderName) {
+                targetColIndex = j;
+                break;
+            }
+        }
+
+        // 表頭
         html += '<thead><tr>';
-        for (let cell of timetableData[0]) {
-            html += `<th>${cell}</th>`;
+        for (let j = 0; j < headerRow.length; j++) {
+            let isTargetCol = (j === targetColIndex);
+            let thClass = isTargetCol ? 'highlight-col-header' : '';
+            html += `<th class="${thClass}">${headerRow[j]} ${isTargetCol ? '(今日)' : ''}</th>`;
         }
         html += '</tr></thead><tbody>';
 
-        for (let i = 1; i < timetableData.length; i++) {
+        // 表身
+        for (let i = 1; i < globalTimetableData.length; i++) {
             html += '<tr>';
-            for (let j = 0; j < timetableData[i].length; j++) {
-                let cellContent = timetableData[i][j] ? timetableData[i][j].trim() : '';
-                
+            const rowData = globalTimetableData[i];
+            const timeSlotStr = rowData[0] ? rowData[0].trim() : '';
+
+            for (let j = 0; j < rowData.length; j++) {
+                let cellContent = rowData[j] ? rowData[j].trim() : '';
+                let isTargetCol = (j === targetColIndex);
+                let colClass = isTargetCol ? 'highlight-col' : '';
+
                 if (j === 0) {
-                    html += `<td class="time-col">${cellContent}</td>`;
+                    html += `<td class="time-col ${colClass}">${cellContent}</td>`;
                 } else {
                     const isMarkedOdd = cellContent.includes('單週');
                     const isMarkedEven = cellContent.includes('雙週');
                     const isMarkedSemester1 = cellContent.includes('[上學期]');
+                    const isEmptySlot = (cellContent === '' || cellContent === '(空堂)');
 
-                    if (cellContent === '') {
-                        // 1. 本身空白的格子 -> 黃色
-                        html += `<td class="free-slot"></td>`;
-                    } else if (isAfterFeb13 && currentMonth === 2 && isMarkedSemester1) {
-                        // 2. 2月13日後，標示 [上學期] 的格成黃色，文字淺色
-                        html += `<td class="inactive-class" title="上學期專用課程（現已完結）">${cellContent}</td>`;
+                    // 檢查是否為當刻正上緊的課堂
+                    const isCurrentLiveClass = isTargetCol && isCurrentTimeInRange(timeSlotStr, dateInputVal);
+                    let liveClassClass = isCurrentLiveClass ? 'current-active-class' : '';
+
+                    if (isEmptySlot) {
+                        // 空堂或 (空堂)：不顯示文字，變成黃色格
+                        html += `<td class="free-slot ${colClass} ${liveClassClass}"></td>`;
+                    } else if (isAfterFeb13 && targetMonth === 2 && isMarkedSemester1) {
+                        // 2月13日後上學期課堂變黃色
+                        html += `<td class="inactive-class ${colClass} ${liveClassClass}" title="上學期專用課程（現已完結）">${cellContent}</td>`;
                     } else if (matchedWeekNum !== null && isOddWeek && isMarkedEven && !isMarkedOdd) {
-                        // 3. 【單週】時：標註「雙週」的格子轉黃色並讓文字變淺色
-                        html += `<td class="inactive-class" title="雙週課程（本週不上）">${cellContent}</td>`;
+                        // 單週遇到雙週課 -> 黃色、淺字
+                        html += `<td class="inactive-class ${colClass} ${liveClassClass}" title="雙週課程（本週不上）">${cellContent}</td>`;
                     } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
-                        // 4. 【雙週】時：標註「單週」的格子轉黃色並讓文字變淺色
-                        html += `<td class="inactive-class" title="單週課程（本週不上）">${cellContent}</td>`;
+                        // 雙週遇到單週課 -> 黃色、淺字
+                        html += `<td class="inactive-class ${colClass} ${liveClassClass}" title="單週課程（本週不上）">${cellContent}</td>`;
                     } else {
-                        // 5. 其餘正常顯示
-                        html += `<td class="active-class">${cellContent}</td>`;
+                        // 正常上課
+                        html += `<td class="active-class ${colClass} ${liveClassClass}">${cellContent}</td>`;
                     }
                 }
             }
@@ -259,7 +393,7 @@ function renderSchedule(calendarRows, timetableData) {
 // 頁面載入時執行
 loadTimetableAndCalendar();
 
-// 每 5 分鐘 (300,000 毫秒) 自動重新整理一次
+// 每 5 分鐘自動重新整理一次
 setInterval(() => {
     loadTimetableAndCalendar();
 }, 300000);
