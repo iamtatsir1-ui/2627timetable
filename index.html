@@ -245,7 +245,6 @@ function renderSchedule() {
     const dateInputVal = document.getElementById('date-select').value;
     const selectedDate = dateInputVal ? new Date(dateInputVal + 'T00:00:00') : new Date();
     
-    const targetYear = selectedDate.getFullYear();
     const targetMonth = selectedDate.getMonth() + 1;
     const targetDay = selectedDate.getDate();
     const targetDayOfWeek = selectedDate.getDay();
@@ -254,8 +253,12 @@ function renderSchedule() {
 
     let matchedWeekNum = null;
     let currentWeekType = '未知';
-    let activeMonthNum = 0;
     
+    // 【修改重點】：為了防止 calendar.csv 中跨列的月份或週次空白導致對應失敗，
+    // 我們先進行預處理，將每一行的月、週次向下填滿（Forward Fill）。
+    let lastKnownMonth = 0;
+    let lastKnownWeekNum = null;
+
     for (let i = 2; i < globalCalendarData.length; i++) {
         const row = globalCalendarData[i];
         if (!row || row.length < 9) continue;
@@ -264,16 +267,19 @@ function renderSchedule() {
         const monthStr = row[1] ? row[1].trim() : '';
         
         if (monthStr !== '') {
-            activeMonthNum = monthMap[monthStr] || activeMonthNum;
+            lastKnownMonth = monthMap[monthStr] || lastKnownMonth;
+        }
+        if (weekNumStr !== '') {
+            lastKnownWeekNum = parseInt(weekNumStr, 10);
         }
         
         for (let dayCol = 2; dayCol <= 8; dayCol++) {
             const dayVal = row[dayCol] ? row[dayCol].trim() : '';
             if (dayVal !== '') {
                 const dNum = parseInt(dayVal, 10);
-                if (dNum === targetDay && activeMonthNum === targetMonth) {
-                    if (weekNumStr !== '') {
-                        matchedWeekNum = parseInt(weekNumStr, 10);
+                if (dNum === targetDay && lastKnownMonth === targetMonth) {
+                    if (lastKnownWeekNum !== null) {
+                        matchedWeekNum = lastKnownWeekNum;
                     }
                     break;
                 }
@@ -353,7 +359,6 @@ function renderSchedule() {
                     const isCurrentLiveClass = isTargetCol && isCurrentTimeInRange(timeSlotStr, dateInputVal);
                     let liveClassClass = isCurrentLiveClass ? 'current-active-class' : '';
 
-                    // 判斷是否需要隱藏文字並轉黃色 (空堂、2/13後上學期課、單週遇到雙週課、雙週遇到單週課)
                     let shouldHide = false;
                     let tooltipMsg = '';
 
@@ -363,11 +368,9 @@ function renderSchedule() {
                         shouldHide = true;
                         tooltipMsg = '上學期專用課程（現已完結）';
                     } else if (matchedWeekNum !== null && isOddWeek && isMarkedEven && !isMarkedOdd) {
-                        // 單週查找日，遇到雙週課 -> 隱藏文字轉黃色
-                        shouldHide = true;
+                        shouldShouldHide = true;
                         tooltipMsg = '雙週課程（本週不上）';
                     } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
-                        // 雙週查找日，遇到單週課 -> 隱藏文字轉黃色
                         shouldHide = true;
                         tooltipMsg = '單週課程（本週不上）';
                     }
