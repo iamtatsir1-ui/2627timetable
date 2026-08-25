@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>教師個人時間表 (自動單雙週)</title>
+    <title>個人時間表</title>
     <!-- 引入 PapaParse 用於解析 CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -65,7 +65,7 @@
             font-weight: bold;
             width: 120px;
         }
-        /* 樣式設定 */
+        /* 樣式設定：依要求將空堂或非當週課堂轉黃色，文字淺色 */
         .free-slot {
             background-color: #fef08a !important; /* 空白格黃色 */
             color: #333 !important;
@@ -103,7 +103,7 @@
 </div>
 
 <script>
-// 轉換中文月份字串為數字
+// 中文月份對應數字
 const monthMap = {
     '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
     '七': 7, '八': 8, '九': 9, '十': 10, '十一': 11, '十二': 12
@@ -121,7 +121,7 @@ async function loadTimetableAndCalendar() {
 
         Papa.parse(calText, {
             header: false,
-            skipEmptyLines: true,
+            skipEmptyLines: false, // 保留完整行以便準確對應 A3-A64
             complete: function(calResults) {
                 Papa.parse(timeText, {
                     header: false,
@@ -152,23 +152,27 @@ function renderSchedule(calendarRows, timetableData) {
     let currentWeekType = '未知';
     let activeMonthNum = 0;
     
+    // 依照你的說明：從 A3 到 A64 (陣列索引 2 到 63)
     for (let i = 2; i < calendarRows.length; i++) {
         const row = calendarRows[i];
         if (!row || row.length < 9) continue;
         
-        const weekNumStr = row[0].trim();
-        const monthStr = row[1].trim();
+        const weekNumStr = row[0] ? row[0].trim() : '';
+        const monthStr = row[1] ? row[1].trim() : '';
         
         if (monthStr !== '') {
             activeMonthNum = monthMap[monthStr] || activeMonthNum;
         }
         
+        // 檢查星期一至星期日 (對應 CSV 欄位索引 2 至 8，即 M 至 S)
         for (let dayCol = 2; dayCol <= 8; dayCol++) {
             const dayVal = row[dayCol] ? row[dayCol].trim() : '';
             if (dayVal !== '') {
                 const dNum = parseInt(dayVal, 10);
                 if (dNum === currentDate && activeMonthNum === currentMonth) {
-                    matchedWeekNum = parseInt(weekNumStr, 10);
+                    if (weekNumStr !== '') {
+                        matchedWeekNum = parseInt(weekNumStr, 10);
+                    }
                     break;
                 }
             }
@@ -185,10 +189,14 @@ function renderSchedule(calendarRows, timetableData) {
         noticeContainer.innerHTML = '';
     }
 
+    let isOddWeek = false;
     if (matchedWeekNum !== null) {
+        // 單數週即單週，雙數週即雙週
         if (matchedWeekNum % 2 !== 0) {
+            isOddWeek = true;
             currentWeekType = `第 ${matchedWeekNum} 週 (單週)`;
         } else {
+            isOddWeek = false;
             currentWeekType = `第 ${matchedWeekNum} 週 (雙週)`;
         }
     } else {
@@ -220,19 +228,19 @@ function renderSchedule(calendarRows, timetableData) {
                     const isMarkedSemester1 = cellContent.includes('[上學期]');
 
                     if (cellContent === '') {
-                        // 本身空白 -> 黃色空堂
+                        // 1. 本身空白的格子 -> 黃色
                         html += `<td class="free-slot"></td>`;
                     } else if (isAfterFeb13 && currentMonth === 2 && isMarkedSemester1) {
-                        // 【修正點】：2月13日後，標示 [上學期] 的格變成黃色，文字淺色
+                        // 2. 2月13日後，標示 [上學期] 的格成黃色，文字淺色
                         html += `<td class="inactive-class" title="上學期專用課程（現已完結）">${cellContent}</td>`;
-                    } else if (matchedWeekNum !== null && matchedWeekNum % 2 !== 0 && isMarkedEven && !isMarkedOdd) {
-                        // 單週遇到雙週課 -> 黃色、淺色字
+                    } else if (matchedWeekNum !== null && isOddWeek && isMarkedEven && !isMarkedOdd) {
+                        // 3. 【單週】時：標註「雙週」的格子轉黃色並讓文字變淺色
                         html += `<td class="inactive-class" title="雙週課程（本週不上）">${cellContent}</td>`;
-                    } else if (matchedWeekNum !== null && matchedWeekNum % 2 === 0 && isMarkedOdd && !isMarkedEven) {
-                        // 雙週遇到單週課 -> 黃色、淺色字
+                    } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
+                        // 4. 【雙週】時：標註「單週」的格子轉黃色並讓文字變淺色
                         html += `<td class="inactive-class" title="單週課程（本週不上）">${cellContent}</td>`;
                     } else {
-                        // 正常顯示
+                        // 5. 其餘正常顯示
                         html += `<td class="active-class">${cellContent}</td>`;
                     }
                 }
@@ -248,8 +256,10 @@ function renderSchedule(calendarRows, timetableData) {
     document.getElementById('table-container').innerHTML = html;
 }
 
+// 頁面載入時執行
 loadTimetableAndCalendar();
 
+// 每 5 分鐘 (300,000 毫秒) 自動重新整理一次
 setInterval(() => {
     loadTimetableAndCalendar();
 }, 300000);
