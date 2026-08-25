@@ -1,391 +1,96 @@
 <!DOCTYPE html>
-<html lang="zh-HK">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>教師個人時間表 (自動單雙週)</title>
-    <!-- 引入 PapaParse 用於解析 CSV -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <title>單雙週狀態查詢</title>
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        header {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            border-bottom: 2px solid #eaeaea;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        h1 {
+            min-height: 100vh;
             margin: 0;
-            font-size: 1.5rem;
-            color: #2c3e50;
+            background-color: #f0f2f5;
         }
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
+        .card {
+            background: #ffffff;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            max-width: 360px;
+            width: 90%;
         }
-        .info-panel {
-            background-color: #f1f5f9;
-            padding: 10px 16px;
-            border-radius: 6px;
+        .date-display {
             font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 0.5rem;
         }
-        .info-panel p {
-            margin: 4px 0;
-            line-height: 1.4;
+        .status {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1677ff;
+            margin: 1rem 0;
         }
-        /* 右上角單雙週醒目標籤 */
-        .week-badge {
+        .error {
+            color: #ff4d4f;
             font-size: 1.1rem;
-            font-weight: bold;
-            padding: 8px 18px;
-            border-radius: 20px;
-            color: #ffffff;
-            background-color: #64748b;
-            display: inline-block;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
-        }
-        .week-badge.odd-week {
-            background-color: #2563eb; /* 單週：亮藍色 */
-        }
-        .week-badge.even-week {
-            background-color: #059669; /* 雙週：翡翠綠 */
-        }
-        .date-picker-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.95rem;
-            font-weight: bold;
-        }
-        .date-picker-wrapper input[type="date"] {
-            padding: 6px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            font-size: 0.95rem;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            border: 1px solid #cbd5e1;
-            padding: 12px 8px;
-            text-align: center;
-            vertical-align: middle;
-            font-size: 0.9rem;
-            height: 60px;
-            width: 16.66%;
-        }
-        th {
-            background-color: #1e293b;
-            color: #fff;
-        }
-        /* 當日直欄放大與加粗 */
-        th.highlight-col-header {
-            background-color: #0284c7 !important;
-            font-size: 1rem;
-        }
-        td.highlight-col {
-            font-weight: bold;
-            font-size: 0.98rem;
-            background-color: #f8fafc;
-        }
-        .time-col {
-            background-color: #f1f5f9;
-            font-weight: bold;
-            width: 120px;
-        }
-        /* 空堂或非當週課堂轉為黃色且隱藏文字 */
-        .free-slot {
-            background-color: #fef08a !important; 
-            color: transparent !important;
-        }
-        .active-class {
-            background-color: #ffffff;
-            color: #0f172a;
-        }
-        /* 當刻正在進行的課堂醒目標示 */
-        .current-active-class {
-            border: 3px solid #ef4444 !important;
-            box-shadow: inset 0 0 8px rgba(239, 68, 68, 0.4);
-            background-color: #fff1f2 !important;
-            animation: pulse-border 2s infinite;
-        }
-        @keyframes pulse-border {
-            0% { border-color: #ef4444; }
-            50% { border-color: #fca5a5; }
-            100% { border-color: #ef4444; }
-        }
-        .holiday-notice {
-            text-align: center;
-            padding: 12px;
-            background-color: #fef9c3;
-            border: 1px solid #fde047;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            font-weight: bold;
-            color: #854d0e;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <header>
-        <h1>教師個人自動時間表</h1>
-        <div class="header-controls">
-            <div class="date-picker-wrapper">
-                <label for="date-select">選擇日期:</label>
-                <input type="date" id="date-select" onchange="onDateChanged()">
-            </div>
-            
-            <div class="info-panel">
-                <p>指定日期：<span id="current-date"></span></p>
-                <p>週別判斷：<strong id="week-type"></strong></p>
-            </div>
+    <div class="card">
+        <div class="date-display" id="today-date">今日日期載入中...</div>
+        <div id="result" class="status">讀取中...</div>
+    </div>
 
-            <div id="week-badge" class="week-badge">載入中</div>
-        </div>
-    </header>
+    <script>
+        async function loadCalendar() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('today-date').textContent = `今天是：${todayStr}`;
 
-    <div id="notice-container"></div>
-    <div id="table-container">載入時間表中...</div>
-</div>
+            try {
+                // 讀取同一層目錄下的 calendar.csv
+                const response = await fetch('calendar.csv', { cache: 'no-cache' });
+                if (!response.ok) throw new Error('無法讀取 CSV 檔案');
 
-<script>
-const dayIndexToHeader = {
-    1: '星期一',
-    2: '星期二',
-    3: '星期三',
-    4: '星期四',
-    5: '星期五'
-};
+                const text = await response.text();
+                const lines = text.trim().split('\n');
 
-let globalTimetableData = null;
-let isUserSelectedDate = false;
+                // 解析 CSV 資料（排除標頭）
+                const records = lines.slice(1).map(line => {
+                    const [date, type] = line.split(',').map(item => item.trim());
+                    return { date, type };
+                }).filter(item => item.date && item.type);
 
-function cleanCell(val) {
-    if (!val) return '';
-    return String(val).replace(/^\ufeff/, '').trim();
-}
+                // 排序日期，確保由舊到新
+                records.sort((a, b) => a.date.localeCompare(b.date));
 
-// 根據日期計算 ISO 標準週號（您的指定演算法）
-function getWeekNumber(d) {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-    return weekNo;
-}
-
-async function loadTimetable() {
-    try {
-        const timeRes = await fetch('timetable.csv?' + new Date().getTime());
-        const timeText = await timeRes.text();
-
-        Papa.parse(timeText, {
-            header: false,
-            skipEmptyLines: true,
-            complete: function(timeResults) {
-                globalTimetableData = timeResults.data;
-                
-                const dateInput = document.getElementById('date-select');
-                if (!isUserSelectedDate || !dateInput.value) {
-                    const today = new Date();
-                    dateInput.value = formatDateString(today);
-                }
-                
-                renderSchedule();
-            }
-        });
-    } catch (error) {
-        document.getElementById('table-container').innerText = '無法讀取 timetable.csv，請確認檔案已放置在同一目錄。';
-        console.error(error);
-    }
-}
-
-function formatDateString(dateObj) {
-    const y = dateObj.getFullYear();
-    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const d = String(dateObj.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
-
-function onDateChanged() {
-    isUserSelectedDate = true;
-    renderSchedule();
-}
-
-function isCurrentTimeInRange(timeStr, targetDateStr) {
-    const now = new Date();
-    const todayStr = formatDateString(now);
-    if (targetDateStr !== todayStr) return false;
-
-    if (!timeStr || !timeStr.includes('-')) return false;
-    const parts = timeStr.split('-');
-    const startTime = cleanCell(parts[0]);
-    const endTime = cleanCell(parts[1]);
-
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    
-    const parseMin = (tStr) => {
-        const [hh, mm] = tStr.split(':').map(Number);
-        return hh * 60 + mm;
-    };
-
-    const startMin = parseMin(startTime);
-    const endMin = parseMin(endTime);
-
-    return currentMinutes >= startMin && currentMinutes <= endMin;
-}
-
-function renderSchedule() {
-    if (!globalTimetableData) return;
-
-    const dateInputVal = document.getElementById('date-select').value;
-    const selectedDate = dateInputVal ? new Date(dateInputVal + 'T00:00:00') : new Date();
-    
-    const targetMonth = selectedDate.getMonth() + 1;
-    const targetDay = selectedDate.getDate();
-    const targetDayOfWeek = selectedDate.getDay();
-
-    // 計算週號與單雙週（使用 getWeekNumber）
-    const weekNum = getWeekNumber(selectedDate);
-    const isOddWeek = (weekNum % 2 !== 0);
-
-    // 更新介面上指定 ID 的元素
-    const currentDateStr = formatDateString(selectedDate);
-    const weekTypeStr = isOddWeek ? "單週 (第 " + weekNum + " 週)" : "雙週 (第 " + weekNum + " 週)";
-
-    document.getElementById("current-date").innerText = currentDateStr;
-    document.getElementById("week-type").innerText = weekTypeStr;
-
-    // 更新右上角 Badge
-    const weekBadge = document.getElementById('week-badge');
-    if (weekBadge) {
-        weekBadge.innerText = isOddWeek ? '單週' : '雙週';
-        weekBadge.className = `week-badge ${isOddWeek ? 'odd-week' : 'even-week'}`;
-    }
-
-    // 判定下學期 (2月13日 至 8月)
-    const isSemester2 = (targetMonth === 2 && targetDay >= 13) || (targetMonth >= 3 && targetMonth <= 8);
-
-    const noticeContainer = document.getElementById('notice-container');
-    if (isSemester2) {
-        noticeContainer.innerHTML = `<div class="holiday-notice">提示：已進入下學期（2月13日後），標示 [上學期] 的課堂已自動隱藏/轉為空堂。</div>`;
-    } else {
-        noticeContainer.innerHTML = '';
-    }
-
-    const targetHeaderName = dayIndexToHeader[targetDayOfWeek];
-    let html = '<table>';
-    
-    if (globalTimetableData.length > 0) {
-        let rawHeader = globalTimetableData[0];
-        let standardHeaders = ['時間', '星期一', '星期二', '星期三', '星期四', '星期五'];
-        
-        let headerMap = {};
-        for (let j = 1; j < rawHeader.length; j++) {
-            let hName = cleanCell(rawHeader[j]);
-            headerMap[hName] = j;
-        }
-
-        html += '<thead><tr>';
-        for (let h of standardHeaders) {
-            let isTargetCol = (h === targetHeaderName);
-            let thClass = isTargetCol ? 'highlight-col-header' : '';
-            let displayName = h === '時間' ? '時間 / 星期' : `${h} ${isTargetCol ? '(今日)' : ''}`;
-            html += `<th class="${thClass}">${displayName}</th>`;
-        }
-        html += '</tr></thead><tbody>';
-
-        for (let i = 1; i < globalTimetableData.length; i++) {
-            html += '<tr>';
-            const rowData = globalTimetableData[i];
-            const timeSlotStr = rowData[0] ? cleanCell(rowData[0]) : '';
-
-            for (let colIdx = 0; colIdx < standardHeaders.length; colIdx++) {
-                let hName = standardHeaders[colIdx];
-                let isTargetCol = (hName === targetHeaderName);
-                let colClass = isTargetCol ? 'highlight-col' : '';
-
-                if (colIdx === 0) {
-                    html += `<td class="time-col ${colClass}">${timeSlotStr}</td>`;
-                } else {
-                    let rawColIndex = headerMap[hName];
-                    let cellContent = (rawColIndex !== undefined && rowData[rawColIndex]) ? cleanCell(rowData[rawColIndex]) : '';
-
-                    const isMarkedOdd = cellContent.includes('單週');
-                    const isMarkedEven = cellContent.includes('雙週');
-                    const isMarkedSemester1 = cellContent.includes('[上學期]');
-                    const isEmptySlot = (cellContent === '' || cellContent === '(空堂)');
-
-                    const isCurrentLiveClass = isTargetCol && isCurrentTimeInRange(timeSlotStr, dateInputVal);
-                    let liveClassClass = isCurrentLiveClass ? 'current-active-class' : '';
-
-                    let shouldHide = false;
-                    let tooltipMsg = '';
-
-                    if (isEmptySlot) {
-                        shouldHide = true;
-                    } else if (isSemester2 && isMarkedSemester1) {
-                        shouldHide = true;
-                        tooltipMsg = '上學期專用課程（現已完結）';
-                    } else if (isOddWeek && isMarkedEven && !isMarkedOdd) {
-                        shouldHide = true;
-                        tooltipMsg = '雙週課程（本週單週不上）';
-                    } else if (!isOddWeek && isMarkedOdd && !isMarkedEven) {
-                        shouldHide = true;
-                        tooltipMsg = '單週課程（本週雙週不上）';
-                    }
-
-                    if (shouldHide) {
-                        html += `<td class="free-slot ${colClass} ${liveClassClass}" title="${tooltipMsg}"></td>`;
+                // 比對小於等於今日的最接近日期
+                let currentType = '未找到對應週別';
+                for (const record of records) {
+                    if (record.date <= todayStr) {
+                        currentType = record.type;
                     } else {
-                        html += `<td class="active-class ${colClass} ${liveClassClass}">${cellContent}</td>`;
+                        break;
                     }
                 }
+
+                document.getElementById('result').textContent = currentType;
+
+            } catch (error) {
+                const resultElem = document.getElementById('result');
+                resultElem.textContent = '資料載入失敗';
+                resultElem.classList.add('error');
+                console.error(error);
             }
-            html += '</tr>';
         }
-        html += '</tbody>';
-    } else {
-        html += '<tr><td>時間表資料為空</td></tr>';
-    }
-    html += '</table>';
 
-    document.getElementById('table-container').innerHTML = html;
-}
-
-loadTimetable();
-
-setInterval(() => {
-    loadTimetable();
-}, 300000);
-</script>
-
+        loadCalendar();
+    </script>
 </body>
 </html>
