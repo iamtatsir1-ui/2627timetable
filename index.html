@@ -254,8 +254,6 @@ function renderSchedule() {
     let matchedWeekNum = null;
     let currentWeekType = '未知';
     
-    // 【修改重點】：為了防止 calendar.csv 中跨列的月份或週次空白導致對應失敗，
-    // 我們先進行預處理，將每一行的月、週次向下填滿（Forward Fill）。
     let lastKnownMonth = 0;
     let lastKnownWeekNum = null;
 
@@ -368,11 +366,13 @@ function renderSchedule() {
                         shouldHide = true;
                         tooltipMsg = '上學期專用課程（現已完結）';
                     } else if (matchedWeekNum !== null && isOddWeek && isMarkedEven && !isMarkedOdd) {
-                        shouldShouldHide = true;
-                        tooltipMsg = '雙週課程（本週不上）';
-                    } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
+                        // 當前為單週，若該堂課標註為「雙週」，則隱藏
                         shouldHide = true;
-                        tooltipMsg = '單週課程（本週不上）';
+                        tooltipMsg = '雙週課程（本週單週不上）';
+                    } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
+                        // 當前為雙週，若該堂課標註為「單週」，則隱藏
+                        shouldHide = true;
+                        tooltipMsg = '單週課程（本週雙週不上）';
                     }
 
                     if (shouldHide) {
