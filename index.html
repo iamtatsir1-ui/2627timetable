@@ -161,7 +161,7 @@ const dayIndexToHeader = {
     5: '星期五'
 };
 
-let globalCalendarData = null;
+let globalCalendarMap = {}; // 格式: "YYYY-MM-DD" -> weekNum
 let globalTimetableData = null;
 let isUserSelectedDate = false;
 
@@ -183,7 +183,7 @@ async function loadTimetableAndCalendar() {
                     header: false,
                     skipEmptyLines: true,
                     complete: function(timeResults) {
-                        globalCalendarData = calResults.data;
+                        parseCalendarData(calResults.data);
                         globalTimetableData = timeResults.data;
                         
                         const dateInput = document.getElementById('date-select');
@@ -201,6 +201,61 @@ async function loadTimetableAndCalendar() {
         document.getElementById('status-bar').innerText = '載入檔案失敗';
         document.getElementById('table-container').innerText = '無法讀取 calendar.csv 或 timetable.csv，請確認它們與 index.html 放在同一 GitHub 資料夾內。';
         console.error(error);
+    }
+}
+
+// 智慧解析 calendar.csv，建立「YYYY-MM-DD -> 週次」的對應表
+function parseCalendarData(rows) {
+    globalCalendarMap = {};
+    let lastKnownMonth = 0;
+    let lastKnownWeekNum = null;
+    let currentYear = new Date().getFullYear();
+
+    for (let i = 2; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 9) continue;
+        
+        const weekNumStr = row[0] ? row[0].trim() : '';
+        const monthStr = row[1] ? row[1].trim() : '';
+        
+        if (monthStr !== '') {
+            lastKnownMonth = monthMap[monthStr] || lastKnownMonth;
+        }
+        if (weekNumStr !== '') {
+            lastKnownWeekNum = parseInt(weekNumStr, 10);
+        }
+
+        if (lastKnownMonth === 0 || lastKnownWeekNum === null) continue;
+
+        // 檢查跨年學年（例如 9月至12月歸屬當年，1月至8月歸屬次年）
+        let year = currentYear;
+        if (lastKnownMonth >= 9) {
+            year = currentYear - (currentYear % 1 === 0 ? 0 : 0); // 若在9-12月可依實際學年調整
+        }
+
+        // 走訪該週每一日（欄位 2 到 8 代表星期一到星期日）
+        for (let dayCol = 2; dayCol <= 8; dayCol++) {
+            const dayVal = row[dayCol] ? row[dayCol].trim() : '';
+            if (dayVal !== '') {
+                const dNum = parseInt(dayVal, 10);
+                if (!isNaN(dNum)) {
+                    // 組合標準 YYYY-MM-DD 格式
+                    const mmStr = String(lastKnownMonth).padStart(2, '0');
+                    const ddStr = String(dNum).padStart(2, '0');
+                    
+                    // 簡單防呆處理跨年月份（若月份小於當前月且大於8，推算為次年）
+                    let targetYear = currentYear;
+                    if (lastKnownMonth >= 9 && new Date().getMonth() + 1 <= 3) {
+                        targetYear = currentYear - 1;
+                    } else if (lastKnownMonth <= 8 && new Date().getMonth() + 1 >= 9) {
+                        targetYear = currentYear + 1;
+                    }
+
+                    const dateKey = `${targetYear}-${mmStr}-${ddStr}`;
+                    globalCalendarMap[dateKey] = lastKnownWeekNum;
+                }
+            }
+        }
     }
 }
 
@@ -240,7 +295,7 @@ function isCurrentTimeInRange(timeStr, targetDateStr) {
 }
 
 function renderSchedule() {
-    if (!globalCalendarData || !globalTimetableData) return;
+    if (!globalTimetableData) return;
 
     const dateInputVal = document.getElementById('date-select').value;
     const selectedDate = dateInputVal ? new Date(dateInputVal + 'T00:00:00') : new Date();
@@ -251,40 +306,9 @@ function renderSchedule() {
 
     const isAfterFeb13 = (targetMonth > 2) || (targetMonth === 2 && targetDay >= 13);
 
-    let matchedWeekNum = null;
+    // 直接從智慧對應表中取得週次
+    let matchedWeekNum = globalCalendarMap[dateInputVal] !== undefined ? globalCalendarMap[dateInputVal] : null;
     let currentWeekType = '未知';
-    
-    let lastKnownMonth = 0;
-    let lastKnownWeekNum = null;
-
-    for (let i = 2; i < globalCalendarData.length; i++) {
-        const row = globalCalendarData[i];
-        if (!row || row.length < 9) continue;
-        
-        const weekNumStr = row[0] ? row[0].trim() : '';
-        const monthStr = row[1] ? row[1].trim() : '';
-        
-        if (monthStr !== '') {
-            lastKnownMonth = monthMap[monthStr] || lastKnownMonth;
-        }
-        if (weekNumStr !== '') {
-            lastKnownWeekNum = parseInt(weekNumStr, 10);
-        }
-        
-        for (let dayCol = 2; dayCol <= 8; dayCol++) {
-            const dayVal = row[dayCol] ? row[dayCol].trim() : '';
-            if (dayVal !== '') {
-                const dNum = parseInt(dayVal, 10);
-                if (dNum === targetDay && lastKnownMonth === targetMonth) {
-                    if (lastKnownWeekNum !== null) {
-                        matchedWeekNum = lastKnownWeekNum;
-                    }
-                    break;
-                }
-            }
-        }
-        if (matchedWeekNum !== null) break;
-    }
 
     const statusBar = document.getElementById('status-bar');
     const noticeContainer = document.getElementById('notice-container');
@@ -366,11 +390,9 @@ function renderSchedule() {
                         shouldHide = true;
                         tooltipMsg = '上學期專用課程（現已完結）';
                     } else if (matchedWeekNum !== null && isOddWeek && isMarkedEven && !isMarkedOdd) {
-                        // 當前為單週，若該堂課標註為「雙週」，則隱藏
                         shouldHide = true;
                         tooltipMsg = '雙週課程（本週單週不上）';
                     } else if (matchedWeekNum !== null && !isOddWeek && isMarkedOdd && !isMarkedEven) {
-                        // 當前為雙週，若該堂課標註為「單週」，則隱藏
                         shouldHide = true;
                         tooltipMsg = '單週課程（本週雙週不上）';
                     }
