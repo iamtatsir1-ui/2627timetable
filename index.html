@@ -179,7 +179,7 @@ const dayIndexToHeader = {
     5: '星期五'
 };
 
-let globalCalendarMap = {}; // "YYYY-MM-DD" -> { weekNum: number, weekType: string }
+let globalCalendarMap = {}; // "MM-DD" -> { weekNum: number, weekType: string }
 let globalTimetableData = null;
 let isUserSelectedDate = false;
 
@@ -251,7 +251,7 @@ function parseMonth(str) {
     return null;
 }
 
-// 自動對應 YYYY-MM-DD -> 週次及單雙週
+// 解析日曆，以「MM-DD」為鍵值（不考慮年份）
 function parseCalendarData(rows) {
     globalCalendarMap = {};
     if (!rows || rows.length === 0) return;
@@ -264,13 +264,12 @@ function parseCalendarData(rows) {
         const c0 = cleanCell(row[0]);
         const c1 = cleanCell(row[1]);
 
-        // 比對 YYYY-MM-DD 或 YYYY/MM/DD
-        const dateMatch = c0.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        // 比對 YYYY-MM-DD、YYYY/MM/DD 或 MM-DD、MM/DD
+        const dateMatch = c0.match(/^(?:(\d{4})[-/])?(\d{1,2})[-/](\d{1,2})$/);
         if (dateMatch) {
-            const y = dateMatch[1];
             const m = String(dateMatch[2]).padStart(2, '0');
             const d = String(dateMatch[3]).padStart(2, '0');
-            const dateKey = `${y}-${m}-${d}`;
+            const dateKey = `${m}-${d}`; // 僅以月-日作為鍵值
 
             let wNum = null;
             const wMatch = c1.match(/\d+/);
@@ -294,29 +293,8 @@ function parseCalendarData(rows) {
     if (Object.keys(globalCalendarMap).length > 0) return;
 
     // 2. 矩陣型日曆格式解析（週次, 月份, 日期1, 日期2...）
-    let firstMonth = null;
-    for (let i = 0; i < rows.length; i++) {
-        if (!rows[i] || rows[i].length < 2) continue;
-        let m = parseMonth(rows[i][1]);
-        if (m !== null) {
-            firstMonth = m;
-            break;
-        }
-    }
-    if (firstMonth === null) firstMonth = 9;
-
-    const now = new Date();
-    const nowYear = now.getFullYear();
-    const nowMonth = now.getMonth() + 1;
-
-    let runningYear = nowYear;
-    if (firstMonth >= 8) {
-        runningYear = (nowMonth >= 8) ? nowYear : nowYear - 1;
-    }
-
     let lastKnownMonth = null;
     let lastKnownWeekNum = null;
-    let prevMonth = null;
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -337,11 +315,6 @@ function parseCalendarData(rows) {
 
         if (lastKnownMonth === null || lastKnownWeekNum === null) continue;
 
-        if (prevMonth !== null && lastKnownMonth < prevMonth && prevMonth >= 9) {
-            runningYear++;
-        }
-        prevMonth = lastKnownMonth;
-
         for (let dayCol = 2; dayCol < row.length; dayCol++) {
             const dayVal = cleanCell(row[dayCol]);
             if (dayVal !== '') {
@@ -349,7 +322,7 @@ function parseCalendarData(rows) {
                 if (!isNaN(dNum) && dNum >= 1 && dNum <= 31) {
                     const mmStr = String(lastKnownMonth).padStart(2, '0');
                     const ddStr = String(dNum).padStart(2, '0');
-                    const dateKey = `${runningYear}-${mmStr}-${ddStr}`;
+                    const dateKey = `${mmStr}-${ddStr}`; // 僅以月-日作為鍵值
                     
                     globalCalendarMap[dateKey] = {
                         weekNum: lastKnownWeekNum,
@@ -408,7 +381,12 @@ function renderSchedule() {
 
     const isAfterFeb13 = (targetMonth > 2) || (targetMonth === 2 && targetDay >= 13);
 
-    const weekInfo = globalCalendarMap[dateInputVal];
+    // 以「MM-DD」作為 Lookup key，完全忽略年份
+    const mmStr = String(targetMonth).padStart(2, '0');
+    const ddStr = String(targetDay).padStart(2, '0');
+    const dateKey = `${mmStr}-${ddStr}`;
+
+    const weekInfo = globalCalendarMap[dateKey];
     let matchedWeekNum = weekInfo ? weekInfo.weekNum : null;
     let matchedWeekTypeStr = weekInfo ? weekInfo.weekType : '';
 
@@ -450,7 +428,8 @@ function renderSchedule() {
         noticeContainer.innerHTML = '';
     }
 
-    statusBar.innerHTML = `${dateInputVal} | 週期: <span style="color: #2563eb;">${currentWeekType}</span>`;
+    // 狀態欄顯示當日月份與日期
+    statusBar.innerHTML = `${targetMonth}月${targetDay}日 | 週期: <span style="color: #2563eb;">${currentWeekType}</span>`;
 
     const targetHeaderName = dayIndexToHeader[targetDayOfWeek];
 
