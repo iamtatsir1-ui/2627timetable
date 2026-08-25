@@ -50,6 +50,28 @@
             border-radius: 4px;
             background-color: #e2e8f0;
         }
+        /* 右上角單雙週醒目標籤 */
+        .week-badge {
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 6px 16px;
+            border-radius: 20px;
+            color: #ffffff;
+            background-color: #64748b;
+            display: inline-block;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .week-badge.odd-week {
+            background-color: #2563eb; /* 單週：亮藍色 */
+        }
+        .week-badge.even-week {
+            background-color: #059669; /* 雙週：翡翠綠 */
+        }
+        .week-badge.holiday {
+            background-color: #64748b; /* 假期：灰色 */
+        }
         .date-picker-wrapper {
             display: flex;
             align-items: center;
@@ -140,6 +162,7 @@
                 <input type="date" id="date-select" onchange="onDateChanged()">
             </div>
             <div id="status-bar">載入中...</div>
+            <div id="week-badge" class="week-badge">載入中</div>
         </div>
     </header>
 
@@ -392,6 +415,8 @@ function renderSchedule() {
     let currentWeekType = '未知';
     let isOddWeek = false;
 
+    const weekBadge = document.getElementById('week-badge');
+
     if (matchedWeekNum !== null) {
         if (matchedWeekTypeStr.includes('單')) {
             isOddWeek = true;
@@ -400,9 +425,20 @@ function renderSchedule() {
         } else {
             isOddWeek = (matchedWeekNum % 2 !== 0);
         }
-        currentWeekType = `第 ${matchedWeekNum} 週 (${isOddWeek ? '單週' : '雙週'})`;
+        
+        const weekLabelText = isOddWeek ? '單週' : '雙週';
+        currentWeekType = `第 ${matchedWeekNum} 週 (${weekLabelText})`;
+
+        if (weekBadge) {
+            weekBadge.innerText = weekLabelText;
+            weekBadge.className = `week-badge ${isOddWeek ? 'odd-week' : 'even-week'}`;
+        }
     } else {
         currentWeekType = '假期 / 未對應到日曆';
+        if (weekBadge) {
+            weekBadge.innerText = '假期 / 非課堂週';
+            weekBadge.className = 'week-badge holiday';
+        }
     }
 
     const statusBar = document.getElementById('status-bar');
