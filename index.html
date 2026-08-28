@@ -2,7 +2,7 @@
 <html lang="zh-HK">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>教師個人時間表 (校曆單雙週查詢)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
@@ -17,9 +17,10 @@
   }
   .container {
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
     max-width: 100%;
-    padding: 6px 10px;
+    padding: 4px 8px;
     display: flex;
     flex-direction: column;
     background: #fff;
@@ -29,39 +30,40 @@
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 4px;
-    margin-bottom: 4px;
+    padding-bottom: 3px;
+    margin-bottom: 3px;
     flex-wrap: nowrap;
-    gap: 10px;
+    gap: 8px;
     flex-shrink: 0;
   }
   h1 {
-    font-size: 1.05rem;
+    font-size: clamp(0.85rem, 2.2vw, 1.1rem);
     color: #1e293b;
     white-space: nowrap;
   }
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: nowrap;
   }
   .info-panel {
     background-color: #f1f5f9;
-    padding: 3px 10px;
+    padding: 2px 8px;
     border-radius: 4px;
-    font-size: 0.78rem;
-    line-height: 1.3;
+    font-size: clamp(0.65rem, 1.6vw, 0.8rem);
+    line-height: 1.25;
   }
   .info-panel p { margin: 1px 0; }
   .week-badge {
-    font-size: 0.95rem;
+    font-size: clamp(0.8rem, 2vw, 1rem);
     font-weight: bold;
-    padding: 4px 12px;
-    border-radius: 16px;
+    padding: 3px 10px;
+    border-radius: 14px;
     color: #fff;
     background-color: #64748b;
     letter-spacing: 0.5px;
+    white-space: nowrap;
   }
   .week-badge.odd-week { background-color: #2563eb; }
   .week-badge.even-week { background-color: #059669; }
@@ -70,83 +72,84 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.8rem;
+    font-size: clamp(0.7rem, 1.8vw, 0.85rem);
     font-weight: bold;
+    white-space: nowrap;
   }
   .date-picker-wrapper input[type="date"] {
-    padding: 2px 6px;
+    padding: 2px 4px;
     border: 1px solid #cbd5e1;
     border-radius: 3px;
-    font-size: 0.8rem;
+    font-size: inherit;
   }
   #notice-container { flex-shrink: 0; }
   .holiday-notice {
     text-align: center;
-    padding: 3px 8px;
+    padding: 2px 6px;
     background-color: #fef2f2;
     border: 1px solid #fca5a5;
     border-radius: 3px;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
     font-weight: bold;
     color: #991b1b;
-    font-size: 0.75rem;
+    font-size: clamp(0.65rem, 1.6vw, 0.78rem);
   }
   #table-container {
     flex: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
   table {
     width: 100%;
     height: 100%;
     border-collapse: collapse;
     table-layout: fixed;
+    /* 基礎字體大小，之後由 JS 根據螢幕自動微調 */
+    font-size: 1rem;
   }
   th, td {
     border: 1px solid #94a3b8;
-    padding: 2px 4px;
+    padding: 1px 3px;
     text-align: center;
     vertical-align: middle;
-    font-size: 0.78rem;
     overflow: hidden;
     white-space: nowrap;
-    text-overflow: ellipsis;
+    text-overflow: clip; /* 強制單行，完全顯示（字體已自動縮放以配合） */
   }
   th {
     background-color: #1e293b;
     color: #fff;
-    font-size: 0.82rem;
-    height: 28px;
+    font-weight: 700;
+    height: auto;
   }
   /* 當日直欄表頭 */
   th.highlight-col-header {
     background-color: #0284c7 !important;
-    font-size: 0.9rem;
     font-weight: 800;
   }
-  /* 當日整列（含時間欄）粗框 + 放大字體 */
+  /* 當日整列（含時間欄） */
   td.highlight-col {
     font-weight: 700;
-    font-size: 0.92rem;
     background-color: #f0f9ff;
   }
-  /* 當日整列外框（時間欄 + 當日課堂欄） */
+  /* 當日整列外框 */
   .day-column-border {
-    border-left: 4px solid #0284c7 !important;
-    border-right: 4px solid #0284c7 !important;
+    border-left: 3px solid #0284c7 !important;
+    border-right: 3px solid #0284c7 !important;
   }
   th.day-column-border {
-    border-top: 4px solid #0284c7 !important;
+    border-top: 3px solid #0284c7 !important;
   }
   tr:last-child td.day-column-border {
-    border-bottom: 4px solid #0284c7 !important;
+    border-bottom: 3px solid #0284c7 !important;
   }
   .time-col {
     background-color: #e2e8f0;
     font-weight: bold;
-    width: 110px;
-    font-size: 0.75rem;
+    width: 18%;
+    min-width: 90px;
   }
   /* 空堂轉黃 + 隱藏文字 */
   .free-slot {
@@ -157,7 +160,7 @@
     background-color: #ffffff;
     color: #0f172a;
   }
-  /* 當刻進行中：時間格 + 課堂格 共同紅色粗框 + 緩慢閃爍 */
+  /* 當刻進行中：紅色粗框 + 緩慢閃爍 */
   .current-live-cell {
     border: 3px solid #ef4444 !important;
     background-color: #fff1f2 !important;
@@ -168,6 +171,19 @@
   @keyframes slow-pulse {
     0%, 100% { border-color: #ef4444; box-shadow: inset 0 0 6px rgba(239,68,68,0.35); }
     50% { border-color: #fca5a5; box-shadow: inset 0 0 10px rgba(239,68,68,0.55); }
+  }
+
+  /* 響應式：小螢幕再微調 header */
+  @media (max-width: 600px) {
+    header {
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .header-controls {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    h1 { font-size: 0.9rem; }
   }
 </style>
 </head>
@@ -187,11 +203,9 @@
       <div id="week-badge" class="week-badge">載入中</div>
     </div>
   </header>
-
   <div id="notice-container"></div>
   <div id="table-container">載入時間表中...</div>
 </div>
-
 <script>
 const dayIndexToHeader = { 1: '星期一', 2: '星期二', 3: '星期三', 4: '星期四', 5: '星期五' };
 const monthMap = {
@@ -201,7 +215,6 @@ const monthMap = {
   '1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'11':11,'12':12,
   '1月':1,'2月':2,'3月':3,'4月':4,'5月':5,'6月':6,'7月':7,'8月':8,'9月':9,'10月':10,'11月':11,'12月':12
 };
-
 let globalCalendarData = null;
 let globalTimetableData = null;
 let isUserSelectedDate = false;
@@ -286,7 +299,6 @@ function isCurrentTimeInRange(timeStr, targetDateStr) {
   const todayStr = formatDateString(now);
   if (targetDateStr !== todayStr) return false;
   if (!timeStr || !timeStr.includes('-')) return false;
-  // 去除 [第x節] 等後綴，只取時間部分
   const pureTime = timeStr.replace(/\[.*?\]/g, '').trim();
   const parts = pureTime.split('-');
   if (parts.length < 2) return false;
@@ -306,14 +318,82 @@ function isCurrentTimeInRange(timeStr, targetDateStr) {
   }
 }
 
+/**
+ * 自動根據螢幕可用空間調整表格字體大小
+ * 目標：所有文字單行完全顯示、表格完整顯示在一個畫面內
+ * 當日欄位字體比一般欄位稍大
+ */
+function autoFitTableFont() {
+  const container = document.getElementById('table-container');
+  const table = container.querySelector('table');
+  if (!table) return;
+
+  // 先重置為較大基礎字體，之後再縮放
+  const baseSize = 16; // px，初始較大
+  table.style.fontSize = baseSize + 'px';
+
+  // 當日欄位再加大一點（約 1.18 倍）
+  const highlightCells = table.querySelectorAll('.highlight-col, .highlight-col-header');
+  highlightCells.forEach(cell => {
+    cell.style.fontSize = '1.18em';
+  });
+
+  // 計算可用高度
+  const availableHeight = container.clientHeight;
+  const availableWidth = container.clientWidth;
+
+  // 迭代縮小字體直到表格高度與寬度都能完整顯示
+  let currentSize = baseSize;
+  const minSize = 9; // 最小字體限制，避免太小
+  let iterations = 0;
+  const maxIterations = 40;
+
+  while (iterations < maxIterations) {
+    table.style.fontSize = currentSize + 'px';
+
+    // 強制 reflow
+    void table.offsetHeight;
+
+    const tableHeight = table.scrollHeight;
+    const tableWidth = table.scrollWidth;
+
+    // 檢查是否有文字溢出（單行完全顯示）
+    let hasTextOverflow = false;
+    const cells = table.querySelectorAll('th, td');
+    for (let cell of cells) {
+      if (cell.scrollWidth > cell.clientWidth + 1) {
+        hasTextOverflow = true;
+        break;
+      }
+    }
+
+    if (tableHeight <= availableHeight + 2 && tableWidth <= availableWidth + 2 && !hasTextOverflow) {
+      break; // 已完美符合
+    }
+
+    // 每次縮小 0.4px
+    currentSize -= 0.4;
+    if (currentSize < minSize) {
+      currentSize = minSize;
+      table.style.fontSize = currentSize + 'px';
+      break;
+    }
+    iterations++;
+  }
+
+  // 確保當日欄位仍然比其他欄位大一點
+  highlightCells.forEach(cell => {
+    cell.style.fontSize = '1.18em';
+  });
+}
+
 function renderSchedule() {
   if (!globalTimetableData) return;
-
   const dateInputVal = document.getElementById('date-select').value;
   const selectedDate = dateInputVal ? new Date(dateInputVal + 'T00:00:00') : new Date();
   const targetMonth = selectedDate.getMonth() + 1;
   const targetDay = selectedDate.getDate();
-  const targetDayOfWeek = selectedDate.getDay(); // 0=日, 1=一 ... 5=五
+  const targetDayOfWeek = selectedDate.getDay();
   const weekInfo = lookupWeekInCalendar(globalCalendarData, selectedDate);
 
   // 更新資訊
@@ -331,7 +411,7 @@ function renderSchedule() {
     weekBadge.className = 'week-badge unknown-week';
   }
 
-  // 提示（只顯示找不到週別，不顯示下學期提示）
+  // 提示
   const noticeContainer = document.getElementById('notice-container');
   if (!weekInfo.found) {
     noticeContainer.innerHTML = `<div class="holiday-notice">提示：選擇的日期在校曆中未找到對應週別，時間表課節暫不顯示。</div>`;
@@ -340,22 +420,20 @@ function renderSchedule() {
   }
 
   const targetHeaderName = dayIndexToHeader[targetDayOfWeek];
-  // 是否為上課日（一至五）
   const isWeekday = targetDayOfWeek >= 1 && targetDayOfWeek <= 5;
 
-  // 建立標準星期順序，但把「時間」欄動態插到當日星期的左側
+  // 建立顯示順序：時間欄插到當日左邊
   let displayOrder = ['星期一', '星期二', '星期三', '星期四', '星期五'];
   if (isWeekday && targetHeaderName) {
     const idx = displayOrder.indexOf(targetHeaderName);
     if (idx !== -1) {
-      displayOrder.splice(idx, 0, '時間'); // 插入到當日左邊
+      displayOrder.splice(idx, 0, '時間');
     }
   } else {
-    // 週末或找不到 → 時間放最左
     displayOrder = ['時間', ...displayOrder];
   }
 
-  // 解析表頭對應
+  // 解析表頭
   let rawHeader = globalTimetableData[0] || [];
   let headerMap = {};
   for (let j = 1; j < rawHeader.length; j++) {
@@ -381,7 +459,6 @@ function renderSchedule() {
     const rowData = globalTimetableData[i];
     const timeSlotStr = rowData[0] ? cleanCell(rowData[0]) : '';
     const isLiveTime = isWeekday && isCurrentTimeInRange(timeSlotStr, dateInputVal);
-
     html += '<tr>';
     for (let h of displayOrder) {
       let isTargetCol = (h === targetHeaderName);
@@ -391,22 +468,17 @@ function renderSchedule() {
       if (isTargetCol || (isTimeCol && isWeekday)) colClass += ' day-column-border';
 
       if (isTimeCol) {
-        // 時間欄
         let liveClass = isLiveTime ? ' current-live-cell' : '';
         html += `<td class="time-col ${colClass}${liveClass}">${timeSlotStr}</td>`;
       } else {
-        // 課堂欄
         let rawColIndex = headerMap[h];
         let cellContent = (rawColIndex !== undefined && rowData[rawColIndex]) ? cleanCell(rowData[rawColIndex]) : '';
-
         const isMarkedOdd = cellContent.includes('單週') || cellContent.includes('[單週]');
         const isMarkedEven = cellContent.includes('雙週') || cellContent.includes('[雙週]');
         const isMarkedSemester1 = cellContent.includes('[上學期]');
         const isEmptySlot = (cellContent === '' || cellContent === '(空堂)');
-
         let shouldHide = false;
         let tooltipMsg = '';
-
         if (!weekInfo.found) {
           shouldHide = true;
           tooltipMsg = '未找到對應週別';
@@ -422,9 +494,7 @@ function renderSchedule() {
           shouldHide = true;
           tooltipMsg = '單週課程';
         }
-
         let liveClass = (isTargetCol && isLiveTime) ? ' current-live-cell' : '';
-
         if (shouldHide) {
           html += `<td class="free-slot ${colClass}${liveClass}" title="${tooltipMsg}"></td>`;
         } else {
@@ -436,12 +506,27 @@ function renderSchedule() {
   }
   html += '</tbody></table>';
   document.getElementById('table-container').innerHTML = html;
+
+  // 渲染完成後自動調整字體大小，確保完整顯示在一個螢幕內
+  // 使用 requestAnimationFrame 確保 DOM 已更新
+  requestAnimationFrame(() => {
+    autoFitTableFont();
+  });
 }
 
+// 視窗大小改變時重新調整
+window.addEventListener('resize', () => {
+  if (globalTimetableData) {
+    requestAnimationFrame(() => {
+      autoFitTableFont();
+    });
+  }
+});
+
 loadAllData();
-// 每 5 分鐘自動刷新（同時也更新當刻醒目標示）
+// 每 5 分鐘自動刷新
 setInterval(() => { loadAllData(); }, 300000);
-// 每 30 秒檢查一次當刻時間，確保閃爍及時更新
+// 每 30 秒檢查一次當刻時間
 setInterval(() => { if (globalTimetableData) renderSchedule(); }, 30000);
 </script>
 </body>
