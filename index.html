@@ -150,15 +150,21 @@
     font-weight: bold;
     width: 18%;
     min-width: 90px;
+    text-align: left;          /* 時間改為靠左對齊 */
+    padding-left: 6px;         /* 左邊多一點空間，視覺更舒服 */
   }
-  /* 空堂轉黃 + 隱藏文字 */
+  /* 空堂：白色底 + 隱藏文字 */
   .free-slot {
-    background-color: #fef08a !important;
+    background-color: #ffffff !important;
     color: transparent !important;
   }
+  /* 有堂：金色發光底 */
   .active-class {
-    background-color: #ffffff;
+    background: linear-gradient(135deg, #fef9c3 0%, #fde68a 40%, #fbbf24 100%) !important;
     color: #0f172a;
+    box-shadow: inset 0 0 8px rgba(251, 191, 36, 0.55),
+                0 0 6px rgba(245, 158, 11, 0.45);
+    font-weight: 600;
   }
   /* 當刻進行中：紅色粗框 + 緩慢閃爍 */
   .current-live-cell {
@@ -172,7 +178,6 @@
     0%, 100% { border-color: #ef4444; box-shadow: inset 0 0 6px rgba(239,68,68,0.35); }
     50% { border-color: #fca5a5; box-shadow: inset 0 0 10px rgba(239,68,68,0.55); }
   }
-
   /* 響應式：小螢幕再微調 header */
   @media (max-width: 600px) {
     header {
@@ -218,12 +223,10 @@ const monthMap = {
 let globalCalendarData = null;
 let globalTimetableData = null;
 let isUserSelectedDate = false;
-
 function cleanCell(val) {
   if (!val) return '';
   return String(val).replace(/^\ufeff/, '').trim();
 }
-
 function lookupWeekInCalendar(calData, selectedDate) {
   if (!calData) return { found: false, weekType: '未找到對應週別', isOdd: null, weekNum: null };
   const targetMonth = selectedDate.getMonth() + 1;
@@ -246,7 +249,6 @@ function lookupWeekInCalendar(calData, selectedDate) {
   }
   return { found: false, weekType: '未找到對應週別', isOdd: null, weekNum: null };
 }
-
 async function loadAllData() {
   try {
     const timestamp = new Date().getTime();
@@ -281,19 +283,16 @@ async function loadAllData() {
     console.error(error);
   }
 }
-
 function formatDateString(dateObj) {
   const y = dateObj.getFullYear();
   const m = String(dateObj.getMonth() + 1).padStart(2, '0');
   const d = String(dateObj.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
-
 function onDateChanged() {
   isUserSelectedDate = true;
   renderSchedule();
 }
-
 function isCurrentTimeInRange(timeStr, targetDateStr) {
   const now = new Date();
   const todayStr = formatDateString(now);
@@ -317,7 +316,6 @@ function isCurrentTimeInRange(timeStr, targetDateStr) {
     return false;
   }
 }
-
 /**
  * 自動根據螢幕可用空間調整表格字體大小
  * 目標：所有文字單行完全顯示、表格完整顯示在一個畫面內
@@ -327,36 +325,28 @@ function autoFitTableFont() {
   const container = document.getElementById('table-container');
   const table = container.querySelector('table');
   if (!table) return;
-
   // 先重置為較大基礎字體，之後再縮放
   const baseSize = 16; // px，初始較大
   table.style.fontSize = baseSize + 'px';
-
   // 當日欄位再加大一點（約 1.18 倍）
   const highlightCells = table.querySelectorAll('.highlight-col, .highlight-col-header');
   highlightCells.forEach(cell => {
     cell.style.fontSize = '1.18em';
   });
-
   // 計算可用高度
   const availableHeight = container.clientHeight;
   const availableWidth = container.clientWidth;
-
   // 迭代縮小字體直到表格高度與寬度都能完整顯示
   let currentSize = baseSize;
   const minSize = 9; // 最小字體限制，避免太小
   let iterations = 0;
   const maxIterations = 40;
-
   while (iterations < maxIterations) {
     table.style.fontSize = currentSize + 'px';
-
     // 強制 reflow
     void table.offsetHeight;
-
     const tableHeight = table.scrollHeight;
     const tableWidth = table.scrollWidth;
-
     // 檢查是否有文字溢出（單行完全顯示）
     let hasTextOverflow = false;
     const cells = table.querySelectorAll('th, td');
@@ -366,11 +356,9 @@ function autoFitTableFont() {
         break;
       }
     }
-
     if (tableHeight <= availableHeight + 2 && tableWidth <= availableWidth + 2 && !hasTextOverflow) {
       break; // 已完美符合
     }
-
     // 每次縮小 0.4px
     currentSize -= 0.4;
     if (currentSize < minSize) {
@@ -380,13 +368,11 @@ function autoFitTableFont() {
     }
     iterations++;
   }
-
   // 確保當日欄位仍然比其他欄位大一點
   highlightCells.forEach(cell => {
     cell.style.fontSize = '1.18em';
   });
 }
-
 function renderSchedule() {
   if (!globalTimetableData) return;
   const dateInputVal = document.getElementById('date-select').value;
@@ -395,7 +381,6 @@ function renderSchedule() {
   const targetDay = selectedDate.getDate();
   const targetDayOfWeek = selectedDate.getDay();
   const weekInfo = lookupWeekInCalendar(globalCalendarData, selectedDate);
-
   // 更新資訊
   document.getElementById("current-date").innerText = formatDateString(selectedDate);
   const weekTypeElem = document.getElementById("week-type");
@@ -410,7 +395,6 @@ function renderSchedule() {
     weekBadge.innerText = '未找到對應週別';
     weekBadge.className = 'week-badge unknown-week';
   }
-
   // 提示
   const noticeContainer = document.getElementById('notice-container');
   if (!weekInfo.found) {
@@ -418,10 +402,8 @@ function renderSchedule() {
   } else {
     noticeContainer.innerHTML = '';
   }
-
   const targetHeaderName = dayIndexToHeader[targetDayOfWeek];
   const isWeekday = targetDayOfWeek >= 1 && targetDayOfWeek <= 5;
-
   // 建立顯示順序：時間欄插到當日左邊
   let displayOrder = ['星期一', '星期二', '星期三', '星期四', '星期五'];
   if (isWeekday && targetHeaderName) {
@@ -432,7 +414,6 @@ function renderSchedule() {
   } else {
     displayOrder = ['時間', ...displayOrder];
   }
-
   // 解析表頭
   let rawHeader = globalTimetableData[0] || [];
   let headerMap = {};
@@ -440,7 +421,6 @@ function renderSchedule() {
     let hName = cleanCell(rawHeader[j]);
     headerMap[hName] = j;
   }
-
   let html = '<table><thead><tr>';
   for (let h of displayOrder) {
     let isTargetCol = (h === targetHeaderName);
@@ -452,9 +432,7 @@ function renderSchedule() {
     html += `<th class="${thClass}">${displayName}</th>`;
   }
   html += '</tr></thead><tbody>';
-
   const isSemester2 = (targetMonth === 2 && targetDay >= 13) || (targetMonth >= 3 && targetMonth <= 8);
-
   for (let i = 1; i < globalTimetableData.length; i++) {
     const rowData = globalTimetableData[i];
     const timeSlotStr = rowData[0] ? cleanCell(rowData[0]) : '';
@@ -466,7 +444,6 @@ function renderSchedule() {
       let colClass = '';
       if (isTargetCol) colClass += ' highlight-col';
       if (isTargetCol || (isTimeCol && isWeekday)) colClass += ' day-column-border';
-
       if (isTimeCol) {
         let liveClass = isLiveTime ? ' current-live-cell' : '';
         html += `<td class="time-col ${colClass}${liveClass}">${timeSlotStr}</td>`;
@@ -506,14 +483,12 @@ function renderSchedule() {
   }
   html += '</tbody></table>';
   document.getElementById('table-container').innerHTML = html;
-
   // 渲染完成後自動調整字體大小，確保完整顯示在一個螢幕內
   // 使用 requestAnimationFrame 確保 DOM 已更新
   requestAnimationFrame(() => {
     autoFitTableFont();
   });
 }
-
 // 視窗大小改變時重新調整
 window.addEventListener('resize', () => {
   if (globalTimetableData) {
@@ -522,7 +497,6 @@ window.addEventListener('resize', () => {
     });
   }
 });
-
 loadAllData();
 // 每 5 分鐘自動刷新
 setInterval(() => { loadAllData(); }, 300000);
